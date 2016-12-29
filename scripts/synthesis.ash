@@ -8,7 +8,7 @@ since r17605;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __version = "1.0";
+string __version = "1.0.1";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
@@ -152,6 +152,8 @@ int synthesis_price(item it)
     if (!it.tradeable)
         return 999999999;
     int price = it.historical_price();
+    if (it.historical_age() > 60.0) //initiate re-search of everything if their knowledge is too old
+    	return it.mall_price();
     if (price <= 0)
         return 999999999;
     return price;
