@@ -1,4 +1,4 @@
-since r17605;
+since r17612;
 /*
 	Sweet Synthesis.ash
 	Simplifies casting the sweet synthesis skill, which takes two candies and one spleen and gives a thirty-turn buff.
@@ -8,16 +8,32 @@ since r17605;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __version = "1.0.1";
+string __version = "1.0.2";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
 boolean [item] __blacklist = $items[ultra mega sour ball,radio button candy,powdered candy sushi set,gummi ammonite,gummi trilobite,fudge bunny,chocolate cigar,vitachoconutriment capsule];
 
 
-boolean [item] __simple_candy = $items[1702, 1962, 4341, 913, 1652, 2942, 3455, 3449, 3454, 3453, 3452, 3451, 4152, 1501, 5455, 5478, 5476, 5477, 1344, 5188, 4340, 1161, 912, 4342, 5454, 2941, 1346, 4192, 1494, 5456, 617, 3496, 2734, 933, 908, 3450, 1783, 2088, 2576, 907, 1767, 906, 911, 540, 263, 909, 905, 5180, 2309, 300, 2307, 298, 1163, 2306, 299, 2305, 297, 2304, 2308, 5892, 6792, 5435, 7677, 7785];
-boolean [item] __complex_candy = $items[5495, 5496, 5494, 5458, 5421, 4851, 2197, 1382, 4334, 4333, 5424, 3269, 5422, 921, 5425, 5423, 3091, 2955, 5416, 5419, 5418, 5417, 5420, 5381, 5319, 5400, 4330, 4332, 5406, 5405, 4818, 5402, 5318, 5384, 4331, 5320, 5382, 5398, 5401, 5397, 5317, 5385, 5321, 5383, 3290, 3760, 2193, 5413, 5459, 5483, 3584, 5395, 5396, 5482, 4256, 5484, 2943, 4329, 3054, 4758, 4163, 4466, 4464, 4465, 4462, 4467, 4463, 4623, 5157, 4395, 4394, 4393, 4518, 5189, 4151, 5023, 3428, 3423, 3424, 5457, 3425, 5480, 5474, 5479, 5473, 5481, 5475, 4164, 3631, 4853, 5414, 5415, 3046, 5345, 1345, 5103, 2220, 4746, 4389, 3125, 4744, 4273, 3422, 1999, 3426, 4181, 4180, 4176, 4183, 4179, 4191, 4182, 4178, 4745, 5526, 6835, 6852, 6833, 6834, 6836, 7499, 7915, 8257, 7914, 6837, 8151, 3124, 8149, 8154, 7919, 6840, 5736, 6831, 7917, 8150, 6404, 6841, 6904, 6903, 7918, 7710, 6399, 9146, 8537, 6405, 6843, 7474, 6172, 9252, 5913];
-
+static
+{
+	//boolean [item] __simple_candy = $items[1702, 1962, 4341, 913, 1652, 2942, 3455, 3449, 3454, 3453, 3452, 3451, 4152, 1501, 5455, 5478, 5476, 5477, 1344, 5188, 4340, 1161, 912, 4342, 5454, 2941, 1346, 4192, 1494, 5456, 617, 3496, 2734, 933, 908, 3450, 1783, 2088, 2576, 907, 1767, 906, 911, 540, 263, 909, 905, 5180, 2309, 300, 2307, 298, 1163, 2306, 299, 2305, 297, 2304, 2308, 5892, 6792, 5435, 7677, 7785];
+	//boolean [item] __complex_candy = $items[5495, 5496, 5494, 5458, 5421, 4851, 2197, 1382, 4334, 4333, 5424, 3269, 5422, 921, 5425, 5423, 3091, 2955, 5416, 5419, 5418, 5417, 5420, 5381, 5319, 5400, 4330, 4332, 5406, 5405, 4818, 5402, 5318, 5384, 4331, 5320, 5382, 5398, 5401, 5397, 5317, 5385, 5321, 5383, 3290, 3760, 2193, 5413, 5459, 5483, 3584, 5395, 5396, 5482, 4256, 5484, 2943, 4329, 3054, 4758, 4163, 4466, 4464, 4465, 4462, 4467, 4463, 4623, 5157, 4395, 4394, 4393, 4518, 5189, 4151, 5023, 3428, 3423, 3424, 5457, 3425, 5480, 5474, 5479, 5473, 5481, 5475, 4164, 3631, 4853, 5414, 5415, 3046, 5345, 1345, 5103, 2220, 4746, 4389, 3125, 4744, 4273, 3422, 1999, 3426, 4181, 4180, 4176, 4183, 4179, 4191, 4182, 4178, 4745, 5526, 6835, 6852, 6833, 6834, 6836, 7499, 7915, 8257, 7914, 6837, 8151, 3124, 8149, 8154, 7919, 6840, 5736, 6831, 7917, 8150, 6404, 6841, 6904, 6903, 7918, 7710, 6399, 9146, 8537, 6405, 6843, 7474, 6172, 9252, 5913];
+	boolean [item] __simple_candy;
+	boolean [item] __complex_candy;
+	void initialiseCandy()
+	{
+		foreach it in $items[]
+		{
+			if (!it.candy) continue;
+			if (it.candy_type == "simple")
+				__simple_candy[it] = true;
+			else if (it.candy_type == "complex")
+				__complex_candy[it] = true;
+		}
+	}
+	initialiseCandy();
+}
 
 //Utility:
 void listAppend(item [int] list, item entry)
@@ -280,11 +296,11 @@ void main(string arguments)
 	{
 		//Mall access:
 		sort combinations by (value[0].synthesis_price() + value[1].synthesis_price());
-		//Take first five, sort by mall price:
+		//Take cheapest ones, sort by mall price:
 		item [int][int] final_combinations;
 		foreach key in combinations
 		{
-			if (key > 4)
+			if (key > 40)
 				break;
 			final_combinations.listAppend(combinations[key]);
 		}
