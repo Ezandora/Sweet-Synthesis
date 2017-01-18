@@ -8,7 +8,7 @@ since r17612;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __version = "1.0.2";
+string __synthesis_version = "1.0.3";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
@@ -36,7 +36,8 @@ static
 }
 
 //Utility:
-void listAppend(item [int] list, item entry)
+//Use prefix to allow including in another script. Bad solution, but...
+void slistAppend(item [int] list, item entry)
 {
 	int position = list.count();
 	while (list contains position)
@@ -44,7 +45,7 @@ void listAppend(item [int] list, item entry)
 	list[position] = entry;
 }
 
-void listAppend(item [int][int] list, item [int] entry)
+void slistAppend(item [int][int] list, item [int] entry)
 {
 	int position = list.count();
 	while (list contains position)
@@ -52,11 +53,11 @@ void listAppend(item [int][int] list, item [int] entry)
 	list[position] = entry;
 }
 
-item [int] listMake(item e1, item e2)
+item [int] slistMake(item e1, item e2)
 {
 	item [int] result;
-	result.listAppend(e1);
-	result.listAppend(e2);
+	result.slistAppend(e1);
+	result.slistAppend(e2);
 	return result;
 }
 
@@ -157,27 +158,239 @@ item [int][int] calculateSweetSynthesisCandyCombinations(int tier, int subid)
             int item_2_id = item_2.to_int();
             if ((item_1_id + item_2_id) % 5 != (subid - 1))
                 continue;
-            result.listAppend(listMake(item_1, item_2));
+            result.slistAppend(slistMake(item_1, item_2));
         }
     }
     return result;
+}
+
+float [item] __mall_price_speculation_percent_increase;
+int mall_price_speculation(item it)
+{
+	int price = it.mall_price();
+	if (__mall_price_speculation_percent_increase contains it)
+		price *= (1.0 + __mall_price_speculation_percent_increase[it]);
+	return price;
+}
+
+int historical_price_speculation(item it)
+{
+	int price = it.historical_price();
+	if (__mall_price_speculation_percent_increase contains it)
+		price *= (1.0 + __mall_price_speculation_percent_increase[it]);
+	return price;
 }
 
 int synthesis_price(item it)
 {
     if (!it.tradeable)
         return 999999999;
-    int price = it.historical_price();
-    if (it.historical_age() > 60.0) //initiate re-search of everything if their knowledge is too old
-    	return it.mall_price();
+    int price = it.historical_price_speculation();
+    if ((it.historical_age() > 7.0 && price < 50000) || it.historical_age() >= 60.0)
+    {
+    	//Initiate re-search of everything if their knowledge is too old. once a week, I guess? that seems like a good idea?
+    	//I think mafia has some built-in database of this. 
+    	return it.mall_price_speculation();
+    }
     if (price <= 0)
         return 999999999;
     return price;
 }
 
+item [int] pickBestCandyCombinationFromCombinations(item [int][int] combinations)
+{
+	if (!can_interact())
+	{
+		//Ronin:
+		item [int][int] combinations_2;
+		foreach key in combinations
+		{
+			item item_1 = combinations[key][0];
+			item item_2 = combinations[key][1];
+			if (item_1.item_amount() == 0 || item_2.item_amount() == 0)
+				continue;
+			combinations_2.slistAppend(slistMake(item_1, item_2));
+		}
+		sort combinations_2 by value[0].synthesis_price() + value[1].synthesis_price();
+		item [int][int] final_combinations;
+		foreach key in combinations_2
+		{
+			if (key > 4)
+				break;
+			final_combinations.slistAppend(combinations_2[key]);
+		}
+		sort final_combinations by value[0].mall_price_speculation() + value[1].mall_price_speculation();
+		return final_combinations[0];
+	}
+	else
+	{
+		//Mall access:
+		sort combinations by (value[0].synthesis_price() + value[1].synthesis_price());
+		//Take cheapest ones, sort by mall price:
+		item [int][int] final_combinations;
+		foreach key in combinations
+		{
+			if (key > 40)
+				break;
+			final_combinations.slistAppend(combinations[key]);
+		}
+		sort final_combinations by value[0].mall_price_speculation() + value[1].mall_price_speculation();
+		return final_combinations[0];
+	}
+}
+
+//Returns best choice for two candies.
+item [int] pickBestCandyCombinationForEffect(effect requested_effect)
+{
+	item [int][int] combinations = calculateSweetSynthesisCandyCombinations(__buff_tiers[requested_effect], __buff_subid[requested_effect]);
+	//Pick cheapest combination obtainable:
+	
+	return pickBestCandyCombinationFromCombinations(combinations);
+}
+
+//Useful in an external script; my farming script will run this to calculate whether to run +item or +meat.
+//3 * meat_drop - costToGainEffect($effect[Synthesis: Greed]) / 30.0
+//vs
+//1.5 * item_drop * item_price - costToGainEffect($effect[Synthesis: Collection]) / 30.0
+int costToGainEffect(effect requested_effect)
+{
+	if (!can_interact())
+		return -1; //-1 or 999999999?
+	item [int] picks = pickBestCandyCombinationForEffect(requested_effect);
+	int price = 0;
+	foreach key, it in picks
+		price += it.mall_price_speculation(); //don't think candy is NPCable
+	return price;
+}
+
+//Abstracted for external scripts.
+void synthesiseCandy(effect requested_effect, boolean show_output)
+{
+	//Locked into an effect, let's try it:
+	if (show_output)
+		print("Requested effect: " + requested_effect + " (" + __buff_descriptions[requested_effect] + ")");
+	int breakout3 = 100;
+	item final_candy_1 = $item[none];
+	item final_candy_2 = $item[none];
+	while (breakout3 > 0)
+	{
+		//Candy picking loop:
+		breakout3 -= 1;
+		item [int] candy_picks = pickBestCandyCombinationForEffect(requested_effect);
+	
+		if (candy_picks.count() < 2)
+		{
+			if (show_output)
+				print("Umm... no candy? Nooooo....", "red");
+			return;
+		}
+	
+		final_candy_1 = candy_picks[0];
+		final_candy_2 = candy_picks[1];
+	
+		if (!can_interact())
+		{
+			boolean yes = user_confirm("Allow consuming " + final_candy_1 + " + " + final_candy_2 + "?");
+			if (!yes)
+			{
+				if (show_output)
+					print("Canceled.");
+				return;
+			}
+		}
+	
+		if (final_candy_1 == $item[none] || final_candy_2 == $item[none])
+		{
+			if (show_output)
+				print("Internal error, sorry.", "red");
+			return;
+		}
+		int mall_price_limit = 100000;
+		if (can_interact())
+			mall_price_limit = 20000;
+		if (final_candy_1.mall_price_speculation() >= mall_price_limit || final_candy_2.mall_price_speculation() >= mall_price_limit) //failsafe
+		{
+			if (show_output)
+				print("This candy is too expensive, bailing out.", "red");
+			return;
+		}
+		
+		int [item] required_items;
+		required_items[final_candy_1] += 1;
+		required_items[final_candy_2] += 1;
+		boolean need_to_recalculate_candy = false;
+		foreach it, amount in required_items
+		{
+			if (need_to_recalculate_candy)
+				break;
+			if (it.item_amount() < amount)
+			{
+				if (can_interact())
+				{
+					//Can't use retrieve_item(), because that won't let us set a price limit.
+					//So, use buy():
+					if (it.item_amount() < amount && it.available_amount() > it.item_amount())
+					{
+						//retrieve some first:
+						//(this generally means pulling)
+						retrieve_item(MIN(MIN(2, amount), it.available_amount()), it);
+					}
+					int breakout = 2;
+					while (breakout > 0 && it.item_amount() < amount)
+					{
+						breakout -= 1;
+						int amount_bought = buy(1, it, MIN(it.mall_price_speculation(), MIN(20000, mall_price_limit))); //the single most dangerous command mafia can ever use
+						if (amount_bought < 1)
+						{
+							//mall_price() is incorrect; we can't buy at that price.
+							//But, umm...
+							//Example: sterno-flavored Hob-O has a disabled player with 31 stock.
+							//If we try to buy from them, we can't.
+							//mall_price() doesn't update in that case. But it did when we tried the same thing for box of dweebs.
+							//Sooo.... I guess we'll just increase its assumed price and recalculate? 
+							__mall_price_speculation_percent_increase[it] += 1.0;
+							need_to_recalculate_candy = true;
+							break;
+						}
+					}
+				}
+				else
+				{
+					if (show_output)
+						print("Can't acquire this candy.", "red");
+					return;
+				}
+			}
+		}
+		if (need_to_recalculate_candy)
+			continue;
+		else
+			break;
+	}
+	
+	if (show_output)
+		print("Chosen candy: " + final_candy_1 + " + " + final_candy_2);
+	if (final_candy_1.item_amount() == 0 || final_candy_2.item_amount() == 0)
+	{
+		if (show_output)
+			print("Can't acquire the candy for some reason.", "red");
+		return;
+	}
+	if (__blacklist contains final_candy_1 || __blacklist contains final_candy_2) //shouldn't show up
+	{
+		if (show_output)
+			print("Blacklisted candy! No can do.", "red");
+		return;
+	}
+	
+	visit_url("runskillz.php?action=Skillz&whichskill=166&targetplayer=" + my_id() + "&quantity=1");
+	visit_url("choice.php?a=" + final_candy_1.to_int() + "&b=" + final_candy_2.to_int() + "&whichchoice=1217&option=1");
+	cli_execute("refresh inventory"); //TEMPORARY; mafia will track properly eventually
+}
+
 void main(string arguments)
 {
-	print("Sweet Synthesis.ash version " + __version);
+	print("Sweet Synthesis.ash version " + __synthesis_version);
 	
 	if (!$skill[sweet synthesis].have_skill())
 	{
@@ -255,121 +468,5 @@ void main(string arguments)
 		return;
 	}
 	
-	//Locked into an effect, let's try it:
-	print("Requested effect: " + requested_effect + " (" + __buff_descriptions[requested_effect] + ")");
-	item [int][int] combinations = calculateSweetSynthesisCandyCombinations(__buff_tiers[requested_effect], __buff_subid[requested_effect]);
-	//Pick cheapest combination obtainable:
-	
-	item final_candy_1 = $item[none];
-	item final_candy_2 = $item[none];
-	if (!can_interact())
-	{
-		//Ronin:
-		item [int][int] combinations_2;
-		foreach key in combinations
-		{
-			item item_1 = combinations[key][0];
-			item item_2 = combinations[key][1];
-			if (item_1.item_amount() == 0 || item_2.item_amount() == 0)
-				continue;
-			combinations_2.listAppend(listMake(item_1, item_2));
-		}
-		sort combinations_2 by value[0].synthesis_price() + value[1].synthesis_price();
-		item [int][int] final_combinations;
-		foreach key in combinations_2
-		{
-			if (key > 4)
-				break;
-			final_combinations.listAppend(combinations_2[key]);
-		}
-		sort final_combinations by value[0].mall_price() + value[1].mall_price();
-		final_candy_1 = final_combinations[0][0];
-		final_candy_2 = final_combinations[0][1];
-		boolean yes = user_confirm("Allow consuming " + final_candy_1 + " + " + final_candy_2 + "?");
-		if (!yes)
-		{
-			print("Canceled.");
-			return;
-		}
-	}
-	else
-	{
-		//Mall access:
-		sort combinations by (value[0].synthesis_price() + value[1].synthesis_price());
-		//Take cheapest ones, sort by mall price:
-		item [int][int] final_combinations;
-		foreach key in combinations
-		{
-			if (key > 40)
-				break;
-			final_combinations.listAppend(combinations[key]);
-		}
-		sort final_combinations by value[0].mall_price() + value[1].mall_price();
-		if (final_combinations.count() == 0)
-		{
-			print("Umm... no candy? Nooooo....", "red");
-			return;
-		}
-		final_candy_1 = final_combinations[0][0];
-		final_candy_2 = final_combinations[0][1];
-	}
-	
-	if (final_candy_1 == $item[none] || final_candy_2 == $item[none])
-	{
-		print("Internal error, sorry.", "red");
-		return;
-	}
-	int mall_price_limit = 100000;
-	if (can_interact())
-		mall_price_limit = 20000;
-		
-	int [item] required_items;
-	required_items[final_candy_1] += 1;
-	required_items[final_candy_2] += 1;
-	foreach it, amount in required_items
-	{
-		if (it.item_amount() < amount)
-		{
-			if (can_interact())
-			{
-				if (!get_property("autoSatisfyWithMall").to_boolean())
-				{
-					int breakout = 2;
-					while (breakout > 0 && it.item_amount() < amount)
-					{
-						breakout -= 1;
-						buy(1, it, MIN(20000, mall_price_limit)); //the single most dangerous command mafia can ever use
-					}
-				}
-				else
-					retrieve_item(MIN(2, amount), it);
-			}
-			else
-			{
-				print("Can't acquire this candy.", "red");
-				return;
-			}
-		}
-	}
-	
-	print("Chosen candy: " + final_candy_1 + " + " + final_candy_2);
-	if (final_candy_1.item_amount() == 0 || final_candy_2.item_amount() == 0)
-	{
-		print("Can't acquire the candy for some reason.", "red");
-		return;
-	}
-	if (final_candy_1.mall_price() >= mall_price_limit || final_candy_2.mall_price() >= mall_price_limit) //failsafe
-	{
-		print("This candy is too expensive, bailing out.", "red");
-		return;
-	}
-	if (__blacklist contains final_candy_1 || __blacklist contains final_candy_2) //shouldn't show up
-	{
-		print("Blacklisted candy! No can do.", "red");
-		return;
-	}
-	
-	visit_url("runskillz.php?action=Skillz&whichskill=166&targetplayer=" + my_id() + "&quantity=1");
-	visit_url("choice.php?a=" + final_candy_1.to_int() + "&b=" + final_candy_2.to_int() + "&whichchoice=1217&option=1");
-	cli_execute("refresh inventory"); //TEMPORARY; mafia will track properly eventually
+	synthesiseCandy(requested_effect, true);
 }
