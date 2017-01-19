@@ -8,7 +8,7 @@ since r17612;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __synthesis_version = "1.0.3";
+string __synthesis_version = "1.0.4";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
@@ -59,6 +59,13 @@ item [int] slistMake(item e1, item e2)
 	result.slistAppend(e1);
 	result.slistAppend(e2);
 	return result;
+}
+
+boolean smafiaIsPastRevision(int revision_number)
+{
+    if (get_revision() <= 0) //get_revision reports zero in certain cases; assume they're on a recent version
+        return true;
+    return (get_revision() >= revision_number);
 }
 
 //Statics:
@@ -331,7 +338,7 @@ void synthesiseCandy(effect requested_effect, boolean show_output)
 					//So, use buy():
 					if (it.item_amount() < amount && it.available_amount() > it.item_amount())
 					{
-						//retrieve some first:
+						//retrieve what we already have:
 						//(this generally means pulling)
 						retrieve_item(MIN(MIN(2, amount), it.available_amount()), it);
 					}
@@ -342,13 +349,10 @@ void synthesiseCandy(effect requested_effect, boolean show_output)
 						int amount_bought = buy(1, it, MIN(it.mall_price_speculation(), MIN(20000, mall_price_limit))); //the single most dangerous command mafia can ever use
 						if (amount_bought < 1)
 						{
-							//mall_price() is incorrect; we can't buy at that price.
-							//But, umm...
-							//Example: sterno-flavored Hob-O has a disabled player with 31 stock.
-							//If we try to buy from them, we can't.
-							//mall_price() doesn't update in that case. But it did when we tried the same thing for box of dweebs.
-							//Sooo.... I guess we'll just increase its assumed price and recalculate? 
-							__mall_price_speculation_percent_increase[it] += 1.0;
+							if (!smafiaIsPastRevision(17704)) //old versions of mafia won't track mall_price() against disabled/ignored stores
+								__mall_price_speculation_percent_increase[it] += 1.0;
+							else //new versions will
+								__mall_price_speculation_percent_increase[it] += 0.05; //very, very small amount, just in case something weird happens
 							need_to_recalculate_candy = true;
 							break;
 						}
@@ -385,7 +389,8 @@ void synthesiseCandy(effect requested_effect, boolean show_output)
 	
 	visit_url("runskillz.php?action=Skillz&whichskill=166&targetplayer=" + my_id() + "&quantity=1");
 	visit_url("choice.php?a=" + final_candy_1.to_int() + "&b=" + final_candy_2.to_int() + "&whichchoice=1217&option=1");
-	cli_execute("refresh inventory"); //TEMPORARY; mafia will track properly eventually
+	if (!smafiaIsPastRevision(17700)) //no idea when this was changed; approximating
+		cli_execute("refresh inventory");
 }
 
 void main(string arguments)
