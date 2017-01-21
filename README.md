@@ -4,6 +4,7 @@ Simplifies casting the [Sweet Synthesis skill](http://kol.coldfront.net/thekolwi
 
 Installation
 ----------------
+Run this command in the Graphical CLI:
 <pre>
 svn checkout https://github.com/Ezandora/Sweet-Synthesis/branches/Release/
 </pre>
