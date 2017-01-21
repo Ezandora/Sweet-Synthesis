@@ -8,7 +8,7 @@ since r17612;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __synthesis_version = "1.0.4";
+string __synthesis_version = "1.0.5";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
@@ -441,6 +441,35 @@ void main(string arguments)
 		requested_effect = $effect[Synthesis: Scary]; //+9 spooky res
 	else if (arguments.contains_text("sleaze") || arguments.contains_text("greasy"))
 		requested_effect = $effect[Synthesis: Greasy]; //+9 sleaze res
+	int desired_casts = 1;
+	string [int] arguments_list = arguments.split_string(" ");
+	foreach key, s in arguments_list
+	{
+		if (s == "") continue;
+		if (s.is_integer())
+		{
+			int value = s.to_int();
+			if (value == 0)
+			{
+				print_html("Successfully casted the skill zero times.");
+				return;
+			}
+			else if (value < 0)
+			{
+				print_html("I can't uncast the skill.");
+				return;
+			}
+			desired_casts = MAX(1, value);
+		}
+		if (s == "*")
+		{
+			int target_turns = my_adventures();
+			int turns_have = requested_effect.have_effect();
+			int turn_delta = target_turns - turns_have;
+			int casts_needed = ceil(to_float(turn_delta) / 30.0);
+			desired_casts = MAX(0, casts_needed);
+		}
+	}
 		
 	if (arguments == "" || requested_effect == $effect[none])
 	{
@@ -469,9 +498,19 @@ void main(string arguments)
 		print_html("<b>stench</b>: +9 stench res");
 		print_html("<b>spooky</b>: +9 spooky res");
 		print_html("<b>sleaze</b>: +9 sleaze res");
-		
+		print_html("");
+		print_html("\"synthesis 10 meat\" will cast ten times, for 300 turns of a +meat buff.");
+		print_html("\"synthesis * meat\" will try to extend the meat effect to the number of adventures you have left. In other words, you can cast it before starting your farming.");
 		return;
 	}
-	
-	synthesiseCandy(requested_effect, true);
+	if (desired_casts <= 0)
+		return;
+	if (desired_casts > 1)
+		print_html("Casting " + desired_casts + " times.");
+	for i from 1 to desired_casts
+	{
+		if (spleen_limit() - my_spleen_use() <= 0)
+			break;
+		synthesiseCandy(requested_effect, true);
+	}
 }
