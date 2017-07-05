@@ -8,7 +8,7 @@ since r17612;
 	
 	Written by Ezandora. This script is in the public domain.
 */
-string __synthesis_version = "1.0.5";
+string __synthesis_version = "1.0.6";
 
 //Expensive items that are never allowed for use, as a safeguard:
 //Well, I'm sure there's that totally elite in-run strategy where you use two UMSBs for +50% moxie gain, but aside from that...
@@ -215,6 +215,8 @@ item [int] pickBestCandyCombinationFromCombinations(item [int][int] combinations
 			item item_1 = combinations[key][0];
 			item item_2 = combinations[key][1];
 			if (item_1.item_amount() == 0 || item_2.item_amount() == 0)
+				continue;
+			if (item_1 == item_2 && item_1.item_amount() < 2)
 				continue;
 			combinations_2.slistAppend(slistMake(item_1, item_2));
 		}
