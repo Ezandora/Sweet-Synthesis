@@ -6,7 +6,7 @@ Installation
 ----------------
 Run this command in the Graphical CLI:
 <pre>
-svn checkout https://github.com/Ezandora/Sweet-Synthesis/branches/Release/
+git checkout https://github.com/Ezandora/Sweet-Synthesis.git
 </pre>
 
 Usage
